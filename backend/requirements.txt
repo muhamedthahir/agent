@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+pymongo
+langchain
+langchain-anthropic
+langchain-chroma
+langchain-community
+fastembed
+langsmith
+python-dotenv

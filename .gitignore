@@ -1,0 +1,24 @@
+# Secrets — never commit
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Vector store (local, regenerable)
+backend/chroma_store/
+
+# Node / Vite
+node_modules/
+frontend/dist/
+frontend/.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
