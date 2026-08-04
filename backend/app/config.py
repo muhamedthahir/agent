@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     chroma_dir: str = "./chroma_store"
     retriever_k: int = 4
+    # Optional: HuggingFace token (avoids 403s from anonymous-traffic rate
+    # limits, common on corporate networks with a shared outbound IP).
+    hf_token: str = ""
 
     # LangSmith tracing (optional)
     langsmith_tracing: bool = False

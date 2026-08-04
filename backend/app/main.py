@@ -15,6 +15,8 @@ def configure_environment() -> None:
     s = get_settings()
     if s.anthropic_api_key:
         os.environ.setdefault("ANTHROPIC_API_KEY", s.anthropic_api_key)
+    if s.hf_token:
+        os.environ.setdefault("HF_TOKEN", s.hf_token)
     if s.langsmith_tracing and s.langsmith_api_key:
         os.environ["LANGSMITH_TRACING"] = "true"
         os.environ["LANGSMITH_API_KEY"] = s.langsmith_api_key
