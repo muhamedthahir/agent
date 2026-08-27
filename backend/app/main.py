@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import agent
 from . import ingest as ingest_module
 from .config import get_settings
+from .db import ensure_indexes
 from .schemas import IngestResponse, QueryRequest, QueryResponse
 
 
@@ -35,6 +36,12 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def _startup() -> None:
+    print('Adding indexes')
+    ensure_indexes()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -48,4 +55,5 @@ def ingest_endpoint() -> dict:
 
 @app.post("/query", response_model=QueryResponse)
 def query_endpoint(req: QueryRequest) -> dict:
-    return agent.answer(req.question)
+    history = [h.model_dump() for h in req.history] if req.history else []
+    return agent.answer(req.question, history)

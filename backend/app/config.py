@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     # Query path (text-to-Mongo-query)
     max_result_docs: int = 50                       # hard cap on rows returned
+    query_timeout_ms: int = 15000                    # simple find/aggregate
+    join_query_timeout_ms: int = 30000               # pipelines containing $lookup
 
     # Semantic path (vector RAG) — torch-free embeddings via fastembed
     rag_collections: str = "tickets,feedbackresponses,topic_tracker_entries,subjects"

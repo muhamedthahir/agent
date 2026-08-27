@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { ingest, query } from './api'
-import type { GeneratedQuery, Route, Source } from './types'
+import type { HistoryTurn, QueryResult, Route, Source } from './types'
+
+const ROUTE_LABELS: Record<Route, string> = {
+  query: 'Data lookup',
+  semantic: 'Text search',
+  both: 'Data lookup + Text search',
+}
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   route?: Route
-  generatedQuery?: GeneratedQuery | null
-  rows?: Record<string, unknown>[] | null
+  queries?: QueryResult[] | null
   sources?: Source[] | null
+  queryError?: string | null
 }
 
 export default function App() {
@@ -16,24 +24,30 @@ export default function App() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
+  const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
 
   async function handleSend() {
     const q = input.trim()
     if (!q || loading) return
     setInput('')
+    const history: HistoryTurn[] = messages.map((m) => ({ role: m.role, content: m.content }))
     setMessages((m) => [...m, { role: 'user', content: q }])
     setLoading(true)
     try {
-      const res = await query(q)
+      const res = await query(q, history)
       setMessages((m) => [
         ...m,
         {
           role: 'assistant',
           content: res.answer,
           route: res.route,
-          generatedQuery: res.query,
-          rows: res.rows,
+          queries: res.queries,
           sources: res.sources,
+          queryError: res.query_error,
         },
       ])
     } catch (e) {
@@ -62,7 +76,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>MyAgent</h1>
+        <div className="brand">
+          <span className="brand-mark">M</span>
+          <h1>MyAgent</h1>
+        </div>
         <button className="ingest-btn" onClick={handleIngest}>
           Rebuild search index
         </button>
@@ -71,50 +88,73 @@ export default function App() {
 
       <div className="messages">
         {messages.length === 0 && (
-          <p className="empty">
-            Ask about your TOMS data — operational questions (“how many leaves
-            are pending?”) or free-text ones (“what are trainers reporting in
-            tickets?”). Run “Rebuild search index” once to enable semantic
-            search.
-          </p>
+          <div className="empty">
+            <p className="empty-title">Ask anything about trainers, schedules, and leave</p>
+            <p>
+              Ask direct questions (“how many leave requests are pending?”)
+              or open-ended ones (“what are trainers reporting in tickets?”).
+              Run “Rebuild search index” once so free-text questions can be
+              searched too.
+            </p>
+          </div>
         )}
         {messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
-            <div className="bubble">{m.content}</div>
-            {m.route && <span className={`route route-${m.route}`}>{m.route}</span>}
+            <div className={`avatar avatar-${m.role}`}>{m.role === 'user' ? 'U' : 'M'}</div>
+            <div className="msg-body">
+              <div className="bubble">
+                {m.role === 'assistant' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                ) : (
+                  m.content
+                )}
+              </div>
+              {m.route && <span className={`route route-${m.route}`}>{ROUTE_LABELS[m.route]}</span>}
+              {m.queryError && (
+                <div className="query-error">⚠ Something went wrong looking up that data. {m.queryError}</div>
+              )}
 
-            {m.generatedQuery && (
-              <details className="detail">
-                <summary>MongoDB query · {m.generatedQuery.collection}</summary>
-                <pre>{JSON.stringify(m.generatedQuery.pipeline, null, 2)}</pre>
-              </details>
-            )}
-            {m.rows && m.rows.length > 0 && (
-              <details className="detail">
-                <summary>{m.rows.length} row(s)</summary>
-                <pre>{JSON.stringify(m.rows, null, 2)}</pre>
-              </details>
-            )}
-            {m.sources && m.sources.length > 0 && (
-              <details className="detail">
-                <summary>{m.sources.length} source(s)</summary>
-                {m.sources.map((s, j) => (
-                  <div key={j} className="source">
-                    <code>
-                      {s.collection}:{s.id}
-                    </code>
-                    <pre>{s.text}</pre>
-                  </div>
-                ))}
-              </details>
-            )}
+              {m.queries?.map((q, j) => (
+                <details className="detail" key={j}>
+                  <summary>
+                    Show the {q.rows.length} record(s) used from “{q.collection}”
+                    {m.queries!.length > 1 && ` (${j + 1}/${m.queries!.length})`}
+                  </summary>
+                  <p className="detail-label">Records</p>
+                  <pre>{JSON.stringify(q.rows, null, 2)}</pre>
+                  <p className="detail-label">How they were filtered (technical)</p>
+                  <pre>{JSON.stringify(q.pipeline, null, 2)}</pre>
+                </details>
+              ))}
+              {m.sources && m.sources.length > 0 && (
+                <details className="detail">
+                  <summary>Show the {m.sources.length} reference(s) used</summary>
+                  {m.sources.map((s, j) => (
+                    <div key={j} className="source">
+                      <code>
+                        {s.collection}:{s.id}
+                      </code>
+                      <pre>{s.text}</pre>
+                    </div>
+                  ))}
+                </details>
+              )}
+            </div>
           </div>
         ))}
         {loading && (
           <div className="msg assistant">
-            <div className="bubble">…</div>
+            <div className="avatar avatar-assistant">M</div>
+            <div className="msg-body">
+              <div className="bubble typing">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
           </div>
         )}
+        <div ref={endRef} />
       </div>
 
       <div className="composer">
@@ -125,7 +165,7 @@ export default function App() {
           placeholder="Ask a question…"
           disabled={loading}
         />
-        <button onClick={handleSend} disabled={loading}>
+        <button onClick={handleSend} disabled={loading || !input.trim()}>
           Send
         </button>
       </div>

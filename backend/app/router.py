@@ -10,6 +10,7 @@ from typing import Literal
 from langchain_anthropic import ChatAnthropic
 
 from .config import get_settings
+from .history import as_messages
 
 Route = Literal["query", "semantic", "both"]
 
@@ -17,10 +18,25 @@ _SYSTEM = (
     "Classify the user's question about a training-operations database into "
     "exactly ONE routing label. Reply with only the label word.\n"
     "- query: precise/relational/countable questions answerable by a database "
-    "query (counts, filters, lookups, 'how many', 'who teaches', 'list X where').\n"
-    "- semantic: open-ended questions over free text (summaries, themes, "
-    "'what are people saying', complaints, feedback sentiment).\n"
-    "- both: needs precise data AND free-text understanding.\n"
+    "query (counts, filters, lookups, 'how many', 'who teaches', 'list X "
+    "where', averages, ratings, statuses, dates). This includes BOTH "
+    "feedback collections whenever the question is about their structured "
+    "fields: feedbackforms (monthKey, title, status draft/published, "
+    "publicSlug) and feedbackresponses (form, monthKey, rating 1-5, "
+    "studentName, rollNumber, trainer, createdAt) — counts of responses, "
+    "average rating, responses for a given form/month/trainer, published "
+    "vs draft forms, etc. are all 'query', NOT 'semantic', just because the "
+    "word 'feedback' appears.\n"
+    "- semantic: open-ended questions that need reading free-text content "
+    "to summarize or interpret (summaries, themes, 'what are people "
+    "saying', common complaints, sentiment) — specifically the free-text "
+    "fields feedbackresponses.comments and feedbackresponses.answers[].value "
+    "(open-ended form answers).\n"
+    "- both: needs precise structured data AND free-text understanding "
+    "together (e.g. 'what's the average rating and what are people "
+    "complaining about').\n"
+    "When in doubt between query and semantic, prefer 'both' so the "
+    "structured lookup is never skipped.\n"
     "Answer with one word: query, semantic, or both."
 )
 
@@ -33,8 +49,8 @@ def _llm() -> ChatAnthropic:
     )
 
 
-def classify(question: str) -> Route:
-    msg = _llm().invoke([("system", _SYSTEM), ("human", question)])
+def classify(question: str, history: list[dict[str, str]] | None = None) -> Route:
+    msg = _llm().invoke([("system", _SYSTEM), *as_messages(history), ("human", question)])
     text = (msg.content if isinstance(msg.content, str) else str(msg.content)).lower()
     if "both" in text:
         return "both"

@@ -4,19 +4,25 @@ export interface Source {
   text: string
 }
 
-export interface GeneratedQuery {
+export interface QueryResult {
   collection: string
   pipeline: unknown[]
+  rows: Record<string, unknown>[]
 }
 
 export type Route = 'query' | 'semantic' | 'both'
 
+export interface HistoryTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface QueryResponse {
   answer: string
   route: Route
-  query?: GeneratedQuery | null
-  rows?: Record<string, unknown>[] | null
+  queries?: QueryResult[] | null
   sources?: Source[] | null
+  query_error?: string | null
 }
 
 export interface IngestResponse {
